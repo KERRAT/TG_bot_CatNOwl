@@ -12,7 +12,7 @@ class NewPostHandler:
 
     async def handle_command(self, event):
         self.user_steps[event.sender_id] = 'AWAITING_DATE'
-        await self.date_time_selector.send_date_picker(event)
+        await self.date_time_selector.send_date_picker(event, event.sender_id, False)
 
     async def handle_message(self, event):
         user_id = event.sender_id
