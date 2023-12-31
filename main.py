@@ -1,6 +1,7 @@
 from dotenv import dotenv_values
 from telethon import TelegramClient, events
 from post_constractor.NewPostHendler import NewPostHandler
+from DateTimeSelector import DateTimeSelector
 
 config = dotenv_values(".env")
 
@@ -8,11 +9,11 @@ user_steps = {}
 
 async def main():
     async with TelegramClient('anon', config["api_id"], config["api_hash"]) as client:
-        new_post_handler = NewPostHandler()
 
         # Отримання інформації про поточного користувача
         me = await client.get_me()
         bot_user_id = me.id
+
 
         @client.on(events.NewMessage(pattern='/start'))
         async def start_handler(event):
@@ -20,6 +21,7 @@ async def main():
 
         @client.on(events.NewMessage(pattern='/newpost'))
         async def command_handler(event):
+            new_post_handler = NewPostHandler(client)
             await new_post_handler.handle_command(event)
 
         @client.on(events.NewMessage)

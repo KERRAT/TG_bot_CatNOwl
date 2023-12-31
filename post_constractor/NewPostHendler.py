@@ -1,13 +1,18 @@
 from dateutil import parser
 import datetime
+from DateTimeSelector import DateTimeSelector
+from telethon import TelegramClient, events
 
 class NewPostHandler:
-    def __init__(self):
+    def __init__(self, client):
         self.user_steps = {}
+        self.date_time_selector = DateTimeSelector(client=client, include_past=False)
+        self.client = client
+
 
     async def handle_command(self, event):
         self.user_steps[event.sender_id] = 'AWAITING_DATE'
-        await event.respond('Будь ласка, введіть дату для публікації поста (наприклад, 2023-12-31).')
+        await self.date_time_selector.send_date_picker(event)
 
     async def handle_message(self, event):
         user_id = event.sender_id
