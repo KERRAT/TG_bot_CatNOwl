@@ -1,51 +1,51 @@
 from telethon import TelegramClient, events, Button
 import datetime
 import calendar
+from modelsMenagers.UserDataManager import UserDataManager
 
 class DateTimeSelector:
     DAYS_OF_WEEK = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"]
+    _instance = None
 
-    def __init__(self, client, include_past=True):
+    @classmethod
+    def get_instance(cls, client):
+        if cls._instance is None:
+            cls._instance = cls(client)
+        return cls._instance
+
+
+    def __init__(self, client):
+        if DateTimeSelector._instance is not None:
+            raise Exception("This class is a singleton!")
+        else:
+            DateTimeSelector._instance = self
+
         self.client = client
-        self.user_data = {}
+        self.user_data_manager = UserDataManager()
 
         @self.client.on(events.CallbackQuery)
         async def callback_query_handler(event):
             sender_id = event.sender_id
-            if sender_id in self.user_data and event.message_id == self.user_data[sender_id]['last_message_id']:
+            if self.user_data_manager.get_user_data(sender_id, 'last_message_id') == event.message_id:
                 await self.callback_query_handler(event, sender_id)
 
-    def get_or_create_user_data(self, sender_id, include_past = None):
-        if sender_id not in self.user_data:
-            today = datetime.date.today()
-            self.user_data[sender_id] = {
-                'selected_date': None,
-                'current_year': today.year,
-                'current_month': today.month,
-                'include_past': include_past,
-                'last_message_id': None,
-                'last_chat_id': None
-            }
-        return self.user_data[sender_id]
+    async def send_date_picker(self, event, sender_id, include_past=True, year=None, month=None):
+        user_data = self.user_data_manager.get_or_create_user_data(sender_id)
+                
+        year = year or user_data.get_data('current_year')
+        month = month or user_data.get_data('current_month')
 
-    async def send_date_picker(self, event, sender_id, include_past = True, year=None, month=None):
-        user_data = self.get_or_create_user_data(sender_id, include_past)
-        
-        year = year or user_data['current_year']
-        month = month or user_data['current_month']
-
-        markup = self.create_calendar(year, month, sender_id)
+        markup = self.create_calendar(year, month, include_past)
         msg_text = "Оберіть дату:"
 
-        if user_data['last_message_id'] and user_data['last_chat_id']:
-            await event.client.edit_message(user_data['last_chat_id'], user_data['last_message_id'], msg_text, buttons=markup)
+        if user_data.get_data('last_message_id') and user_data.get_data('last_chat_id'):
+            await event.client.edit_message(user_data.get_data('last_chat_id'), user_data.get_data('last_message_id'), msg_text, buttons=markup)
         else:
             msg = await event.respond(msg_text, buttons=markup)
-            user_data['last_message_id'] = msg.id
-            user_data['last_chat_id'] = msg.chat_id
+            self.user_data_manager.set_user_data(sender_id, 'last_message_id', msg.id)
+            self.user_data_manager.set_user_data(sender_id, 'last_chat_id', msg.chat_id)
 
-    def create_calendar(self, year, month, sender_id):
-        user_data = self.get_or_create_user_data(sender_id)
+    def create_calendar(self, year, month, include_past = True):
         today = datetime.date.today()
 
         # Додавання заголовку з місяцем і роком
@@ -57,10 +57,10 @@ class DateTimeSelector:
 
         month_calendar = calendar.monthcalendar(year, month)
         for week in month_calendar:
-            week_buttons = self.create_week_buttons(week, year, month, today, user_data['include_past'])
+            week_buttons = self.create_week_buttons(week, year, month, today, include_past)
             markup.append(week_buttons)
 
-        navigation_buttons = self.create_navigation_buttons(year, month, today, user_data['include_past'])
+        navigation_buttons = self.create_navigation_buttons(year, month, today, include_past)
         markup.append(navigation_buttons)
 
         return markup
@@ -99,23 +99,26 @@ class DateTimeSelector:
         return buttons
 
     async def callback_query_handler(self, event, sender_id):
-        user_data = self.get_or_create_user_data(sender_id)
+        user_data = self.user_data_manager.get_or_create_user_data(sender_id)
         data = event.data.decode('utf-8')
 
         if data.startswith("date-"):
             _, year, month, day = data.split('-')
-            user_data['selected_date'] = datetime.date(int(year), int(month), int(day))
-            await self.send_time_picker(event, user_data['selected_date'], sender_id)
+            selected_date = datetime.date(int(year), int(month), int(day))
+            user_data.set_data('selected_date', selected_date)
+            self.user_data_manager.set_user_data(sender_id, 'selected_date', selected_date)
+            await self.send_time_picker(event, selected_date, sender_id)
         elif data.startswith("month-"):
             _, year, month = data.split('-')
-            user_data['current_year'], user_data['current_month'] = int(year), int(month)
+            self.user_data_manager.set_user_data(sender_id, 'current_year', int(year))
+            self.user_data_manager.set_user_data(sender_id, 'current_month', int(month))
             await self.send_date_picker(event, sender_id, year=int(year), month=int(month))
 
     async def send_time_picker(self, event, selected_date, sender_id):
-        user_data = self.get_or_create_user_data(sender_id)
+        user_data = self.user_data_manager.get_or_create_user_data(sender_id)
         markup = self.create_hour_selector()
         msg_text = f"Обрана дата: {selected_date}. Тепер оберіть час:"
-        await event.client.edit_message(user_data['last_chat_id'], user_data['last_message_id'], msg_text, buttons=markup)
+        await event.client.edit_message(user_data.get_data('last_chat_id'), user_data.get_data('last_message_id'), msg_text, buttons=markup)
 
     def create_hour_selector(self):
         markup = []

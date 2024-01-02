@@ -2,6 +2,7 @@ from dotenv import dotenv_values
 from telethon import TelegramClient, events
 from post_constractor.NewPostHendler import NewPostHandler
 from DateTimeSelector import DateTimeSelector
+from modelsMenagers.UserDataManager import UserDataManager
 
 config = dotenv_values(".env")
 
@@ -14,6 +15,7 @@ async def main():
         me = await client.get_me()
         bot_user_id = me.id
 
+        user_data_manager = UserDataManager()
 
         @client.on(events.NewMessage(pattern='/start'))
         async def start_handler(event):
@@ -21,6 +23,7 @@ async def main():
 
         @client.on(events.NewMessage(pattern='/newpost'))
         async def command_handler(event):
+            user_data_manager.reset_last_message_id(event.sender_id)
             new_post_handler = NewPostHandler(client)
             await new_post_handler.handle_command(event)
 
@@ -34,7 +37,6 @@ async def main():
             if event.message.text.startswith('/'):
                 return
 
-            await new_post_handler.handle_message(event)
 
         print("Бот запущено...")
         await client.run_until_disconnected()
