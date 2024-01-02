@@ -93,9 +93,9 @@ class DateTimeSelector:
 
         buttons = []
         if include_past or (year > today.year or (year == today.year and month > today.month)):
-            buttons.append(Button.inline("<", f"month-{year_prev}-{prev_month}"))
+            buttons.append(Button.inline("<", f"month-{year_prev}-{prev_month}-{int(include_past)}"))
 
-        buttons.append(Button.inline(">", f"month-{year_next}-{next_month}"))
+        buttons.append(Button.inline(">", f"month-{year_next}-{next_month}-{int(include_past)}"))
         return buttons
 
     async def callback_query_handler(self, event, sender_id):
@@ -109,10 +109,10 @@ class DateTimeSelector:
             self.user_data_manager.set_user_data(sender_id, 'selected_date', selected_date)
             await self.send_time_picker(event, selected_date, sender_id)
         elif data.startswith("month-"):
-            _, year, month = data.split('-')
+            _, year, month, include_past = data.split('-')
             self.user_data_manager.set_user_data(sender_id, 'current_year', int(year))
             self.user_data_manager.set_user_data(sender_id, 'current_month', int(month))
-            await self.send_date_picker(event, sender_id, year=int(year), month=int(month))
+            await self.send_date_picker(event, sender_id, include_past=bool(int(include_past)), year=int(year), month=int(month))
 
     async def send_time_picker(self, event, selected_date, sender_id):
         user_data = self.user_data_manager.get_or_create_user_data(sender_id)
